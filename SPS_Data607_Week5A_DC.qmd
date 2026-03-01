@@ -1,0 +1,139 @@
+---
+title: "SPS_Data607_Week5A"
+format: html
+editor: visual
+author: "David Chen"
+---
+
+## Week 5 Assignment Grading Rubric
+
+-   Submitted data file with at least some count analysis (+45)
+
+-   Recreated File in Same Format as given, including missing data where there were empty cells in source data. (+5)
+
+-   Placed file in Internet-accessible location, such as a publicly-accessible GitHub repo.  Also OK (if less scaleable) to generated and populated dataframe from code. (+5)
+
+-   Provided code to populate missing data. (+5)
+
+-   Transformed data from wide to long format. (+10)
+
+-   Compared percentage (not just counts) of either delays or arrival rates for two airlines overall. \[Either with a chart, or a table; both would be exemplary\].  Include text summarizes findings from this comparison. (+10)
+
+-   Compared percentage (not just counts) of either delays or arrival rates for two airlines across five cities. \[Either with a chart, or a table; both would be exemplary\].  Include text summarizes findings from this comparison. (+10)
+
+-   Describe discrepancy between comparing two airlines’ flight performances city-by-city and overall. (+5)
+
+-   Explain discrepancy between comparing two airlines’ flight performances city-by-city and overall.(+5)
+
+[Assignment Tidying and Transforming Data](https://brightspace.cuny.edu/content/enforced/1154240-SPS01_DATA_607_1262_1_32167/Assignment%20Tidying%20and%20Transforming%20Data.pdf?ou=1154240)
+
+## Approach
+
+Looking at the dataset, rotating the data structure becomes essential. Splitting it into a few additional tables would make comparisons easier. For example, comparing the average delays of two airlines can be simplified by transforming a wide format(cross-tab) into long format. This is how multiple tables in a database allow us to store data in a multi dimensional structure.
+
+https://raw.githubusercontent.com/dyc-sps/SPS_Data607_Week5A-/refs/heads/main/Airline%20Delays.csv
+
+## Running Code
+
+```{r}
+url <- "https://raw.githubusercontent.com/dyc-sps/SPS_Data607_Week5A-/refs/heads/main/Airline%20Delays.csv"
+```
+```{r}
+library(tidyverse)
+df_airline <- read.csv(url)
+head(df_airline)
+colnames(df_airline)[1:2] <- c("Airline", "Status")
+df_airline <- df_airline %>% fill(Airline)
+head(df_airline)
+
+#Check What it Actually has
+unique(df_airline$Airline)
+
+#Convert Blank Strings to NA
+df_airline <- df_airline %>%
+  mutate(Airline = str_trim(Airline)) %>%
+  mutate(Airline = na_if(Airline, ""))
+head(df_airline)
+```
+### Fill missing airline cells and remove empty line
+```{r}
+
+head(df_airline)
+df_airline <- df_airline %>%
+  filter(Status != "", !is.na(Status))
+
+head(df_airline)
+# filling the airline look last block for NA check and convert
+df_airline <- df_airline %>% 
+  fill(Airline)
+
+
+# convert to long format
+
+df_long <- df_airline %>%
+  pivot_longer(
+    cols = -c(Airline, Status),
+    names_to = "City",
+    values_to = "Flights"
+  )
+df_long
+```
+```{r}
+df_long %>%
+  group_by(Airline, Status) %>%
+  summarise(total = sum(Flights), .groups = "drop")
+ 
+
+```
+
+### Airline delay percentage
+```{r}
+df_long %>%
+  group_by(Airline) %>%
+  summarise(delay_rate = sum(Flights[Status == "delayed"])/sum(Flights)  )
+```
+
+### City delay percentage 
+
+```{r}
+df_long %>%
+  group_by(Airline, City, Status) %>%
+  summarise(total = sum(Flights), .groups = "drop")
+  
+
+
+df_city_delay <- df_long %>%
+  group_by(City,Airline) %>%
+  summarise(delay_rate = sum(Flights[Status == "delayed"])/sum(Flights),.groups = "drop" )
+
+library(ggplot2)
+
+ggplot(df_city_delay, aes(x = City, y = delay_rate, fill = Airline)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Delay Rate by City and Airline",
+    y = "Delay Rate",
+    x = "City"
+  ) +
+  theme_minimal()
+```
+
+### Discrepancy
+```{r}
+df_city_total <-df_long %>%
+  group_by(City,Airline) %>%
+  summarise(total = sum(Flights), .groups = "drop")
+ggplot(df_city_total, aes(x = City, y = total, fill = Airline)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Total Flights by City and Airline",
+    y = "Total Flights",
+    x = "City"
+  ) +
+  theme_minimal()
+```
+
+
+
+Comparing ALASKA and AMWEST, there are clear differences in flight volumes and delay rates across cities. AMWEST has more flights in Phoenix, Los Angeles, and San Diego, while ALASKA dominates Seattle flights. In terms of delays, AMWEST consistently has a higher percentage of delayed flights than ALASKA in most cities, with the largest difference in San Francisco and Seattle. These discrepancies highlight differences in operational scale and punctuality between the two airlines.
+
